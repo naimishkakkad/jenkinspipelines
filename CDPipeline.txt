@@ -73,7 +73,7 @@ pipeline {
 							pointcutData : null,
 							policyTemplateId: "json-threat-protection",
 							assetId:  "json-threat-protection",
-							assetVersion:  getEnvProperty("policies.jwt.version"),
+							assetVersion:  getEnvProperty("policies.jtp.version"),
 							groupId: "68ef9520-24e9-4cf2-b2f5-620025690913"
 						],
 						"client-id-enforcement" : [
