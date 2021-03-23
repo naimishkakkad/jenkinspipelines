@@ -1,0 +1,91 @@
+pipeline {
+    agent any
+    tools {
+        maven "maven"
+    }
+    stages {
+        stage('Code Checkout') {
+            steps {
+                git branch: 'main',
+                credentialsId: 'git',
+				//
+                url: '<use your own repo>'
+				//url: 'https://github.com/naimishkakkad/mule-cicd-demo.git'
+            }
+        }
+         stage('Build') {
+            steps {
+               bat "mvn -B -U -e -V clean -DskipTests package"
+            }
+        }
+        stage('Test') {
+            steps {
+               echo "Skipping tests...."
+               //bat "mvn test -Dhttp.port=8093"
+			   //skipping test for now enable this if you have MuleSoft Nexus Repository available to you
+            }
+        }
+        stage('Publish to Nexus Repository') {
+			environment {
+			        NEXUS_VERSION = "nexus3"
+					NEXUS_PROTOCOL = "http"
+					NEXUS_URL = "localhost:9081"
+					NEXUS_REPOSITORY = "mule-cicd-jenkins"
+					NEXUS_CREDENTIAL_ID = "nexus-user-credentials"
+			}
+            steps {
+                script {
+                    pom = readMavenPom file: "pom.xml";
+                    filesByGlob = findFiles(glob: "target/*.jar");
+                    echo "${filesByGlob[0].name} ${filesByGlob[0].path} ${filesByGlob[0].directory} ${filesByGlob[0].length} ${filesByGlob[0].lastModified}"
+                    artifactPath = filesByGlob[0].path;
+                    artifactExists = fileExists artifactPath;
+                    if(artifactExists) {
+                        echo "*** File: ${artifactPath}, group: ${pom.groupId}, packaging: ${pom.packaging}, version ${pom.version}";
+                        nexusArtifactUploader(
+                            nexusVersion: NEXUS_VERSION,
+                            protocol: NEXUS_PROTOCOL,
+                            nexusUrl: NEXUS_URL,
+                            groupId: pom.groupId,
+                            version: pom.version,
+                            repository: NEXUS_REPOSITORY,
+                            credentialsId: NEXUS_CREDENTIAL_ID,
+                            artifacts: [
+                                // Artifact generated such as .jar, .ear and .war files.
+                                [artifactId: pom.artifactId,
+                                classifier: '',
+                                file: artifactPath,
+                                type: "jar"],
+                                // Lets upload the pom.xml file for additional information for Transitive dependencies
+                                [artifactId: pom.artifactId,
+                                classifier: '',
+                                file: "pom.xml",
+                                type: "pom"]
+                            ]
+                        );
+                    } else {
+                        error "*** File: ${artifactPath}, could not be found";
+                    }
+                }
+            }
+		}	
+	}
+	post {  
+         always {  
+             echo 'This will always run'  
+         }  
+         success {  
+             mail bcc: '', body: "<b>Build Success</b><br>Project: ${env.JOB_NAME} <br>Build Number: ${env.BUILD_NUMBER} <br> URL: ${env.BUILD_URL}", cc: '', charset: 'UTF-8', from: '', mimeType: 'text/html', replyTo: '', subject: "Build Success: Project name -> ${env.JOB_NAME}", to: "<youremailid>@gmail.com";
+         }  
+         failure {  
+             mail bcc: '', body: "<b>Build Failure</b><br>Project: ${env.JOB_NAME} <br>Build Number: ${env.BUILD_NUMBER} <br> URL: ${env.BUILD_URL}", cc: '', charset: 'UTF-8', from: '', mimeType: 'text/html', replyTo: '', subject: "Build Failure: Project name -> ${env.JOB_NAME}", to: "<youremailid>@gmail.com";  
+         }  
+         unstable {  
+             echo 'This will run only if the run was marked as unstable'  
+         }  
+         changed {  
+             echo 'This will run only if the state of the Pipeline has changed'  
+             echo 'For example, if the Pipeline was previously failing but is now successful'  
+         }  
+     }  
+}
